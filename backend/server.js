@@ -6,7 +6,7 @@ const PORT = process.env.PORT || 3000;
 
 // ========== НАСТРОЙКА CORS ==========
 app.use(cors({
-    origin: '*',  // Разрешаем все источники
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -32,7 +32,8 @@ app.get('/', (req, res) => {
             'GET  /api/test - Тест API',
             'POST /api/register - Регистрация',
             'POST /api/orders - Создание заказа',
-            'GET  /api/orders/active - Активные заказы'
+            'GET  /api/orders/active - Активные заказы',
+            'POST /api/proposals - Предложение цены'
         ]
     });
 });
@@ -85,10 +86,10 @@ app.post('/api/register', (req, res) => {
 app.post('/api/orders', (req, res) => {
     console.log('📦 Создание заказа:', req.body);
     
-    if (!req.body.passenger_id || !req.body.address_a || !req.body.address_b) {
+    if (!req.body.passenger_id || !req.body.address_a || !req.body.address_b || !req.body.passenger_price) {
         return res.status(400).json({
             success: false,
-            error: 'Не хватает обязательных полей'
+            error: 'Не хватает обязательных полей: passenger_id, address_a, address_b, passenger_price'
         });
     }
     
@@ -98,7 +99,9 @@ app.post('/api/orders', (req, res) => {
         status: 'pending',
         created_at: new Date().toISOString(),
         driver_id: null,
-        final_price: null
+        final_price: null,
+        first_name: req.body.first_name || 'Пассажир',
+        username: req.body.username || ''
     };
     
     res.json({
@@ -118,7 +121,7 @@ app.get('/api/orders/active', (req, res) => {
             address_b: 'ТРЦ "Москва"',
             first_name: 'Иван',
             username: 'ivan_123',
-            created_at: new Date(Date.now() - 3600000).toISOString(), // 1 час назад
+            created_at: new Date(Date.now() - 3600000).toISOString(),
             status: 'pending'
         },
         {
@@ -128,7 +131,7 @@ app.get('/api/orders/active', (req, res) => {
             address_b: 'Аэропорт',
             first_name: 'Мария',
             username: 'maria_taxi',
-            created_at: new Date(Date.now() - 1800000).toISOString(), // 30 минут назад
+            created_at: new Date(Date.now() - 1800000).toISOString(),
             status: 'pending'
         },
         {
@@ -138,7 +141,7 @@ app.get('/api/orders/active', (req, res) => {
             address_b: 'ЖД вокзал',
             first_name: 'Алексей',
             username: 'alex_driver',
-            created_at: new Date().toISOString(), // сейчас
+            created_at: new Date().toISOString(),
             status: 'pending'
         }
     ];
@@ -149,6 +152,13 @@ app.get('/api/orders/active', (req, res) => {
 // Предложение цены от водителя
 app.post('/api/proposals', (req, res) => {
     console.log('💰 Предложение цены:', req.body);
+    
+    if (!req.body.order_id || !req.body.driver_id || !req.body.proposed_price) {
+        return res.status(400).json({
+            success: false,
+            error: 'Не хватает обязательных полей'
+        });
+    }
     
     res.json({
         success: true,
