@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Taxi | Такси</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <h1>🚕 Local Taxi</h1>
+            <p>Такси с договорной ценой</p>
+            
+            <div class="card">
+                <h2>Добро пожаловать!</h2>
+                <p>Сервер работает: ✅</p>
+                <p>База данных: ⏳ Настраивается</p>
+                
+                <button id="btn-test" class="btn btn-primary">
+                    Тест API
+                </button>
+                
+                <button id="btn-order" class="btn btn-secondary">
+                    Создать заказ
+                </button>
+            </div>
+            
+            <div id="result" class="card hidden">
+                <h3>Результат:</h3>
+                <pre id="result-text"></pre>
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
