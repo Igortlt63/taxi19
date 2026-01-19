@@ -323,4 +323,339 @@ class TaxiApp {
                 });
                 
                 // Сохраняем предложение
-               
+                this.driverOffers.push({
+                    id: driver.id,
+                    name: driver.name,
+                    car: driver.car,
+                    rating: driver.rating,
+                    price: offerPrice,
+                    element: offerElement
+                });
+                
+                // Скрываем текст "нет предложений"
+                if (noOffersText) {
+                    noOffersText.classList.add('hidden');
+                }
+                
+                // Уведомление о новом предложении
+                if (index === 0) {
+                    this.showNotification(`🎉 ${driver.name} предложил ${offerPrice} ₽`);
+                }
+                
+            }, (index + 1) * 2000); // Каждые 2 секунды новое предложение
+        });
+    }
+    
+    // Принять предложение водителя
+    acceptOffer(price, driverName) {
+        const confirmMessage = `Принять предложение ${price} ₽ от ${driverName}?`;
+        
+        if (this.isTelegram) {
+            if (this.tg.showConfirm(confirmMessage)) {
+                this.processAcceptedOffer(price, driverName);
+            }
+        } else {
+            if (confirm(confirmMessage)) {
+                this.processAcceptedOffer(price, driverName);
+            }
+        }
+    }
+    
+    // Обработка принятого предложения
+    processAcceptedOffer(price, driverName) {
+        this.showAlert(`✅ Заказ принят! ${driverName} скоро будет на месте.`);
+        
+        // Отмечаем заказ как принятый
+        this.currentOrder.status = 'accepted';
+        this.currentOrder.driver = driverName;
+        this.currentOrder.finalPrice = price;
+        
+        // В реальном приложении здесь бы отправлялось на сервер
+        // fetch(`${this.serverUrl}/api/orders/${this.currentOrder.id}/accept`, { ... })
+        
+        // Показываем уведомление и возвращаем на главный экран
+        setTimeout(() => {
+            this.showScreen('home');
+            this.showNotification(`🚗 ${driverName} выехал к вам! Следите за перемещением в приложении.`);
+            this.currentOrder = null;
+        }, 2000);
+    }
+    
+    // Предложить свою цену в ответ
+    makeCounterOffer(driverName) {
+        const userPrice = prompt(`Ваша цена для ${driverName} (руб.):`, this.currentOrder.price);
+        
+        if (userPrice && !isNaN(parseInt(userPrice))) {
+            const priceNum = parseInt(userPrice);
+            if (priceNum < 50) {
+                this.showAlert('❌ Минимальная цена - 50 рублей');
+                return;
+            }
+            
+            this.showAlert(`📩 Ваше предложение ${priceNum} ₽ отправлено ${driverName}`);
+            
+            // В реальном приложении здесь бы отправлялось на сервер
+            // fetch(`${this.serverUrl}/api/proposals`, { ... })
+        }
+    }
+    
+    // Отменить заказ
+    cancelOrder() {
+        const confirmMessage = 'Вы уверены, что хотите отменить заказ?';
+        
+        if (this.isTelegram) {
+            if (this.tg.showConfirm(confirmMessage)) {
+                this.processOrderCancellation();
+            }
+        } else {
+            if (confirm(confirmMessage)) {
+                this.processOrderCancellation();
+            }
+        }
+    }
+    
+    // Обработка отмены заказа
+    processOrderCancellation() {
+        this.showAlert('❌ Заказ отменен');
+        
+        // В реальном приложении здесь бы отправлялось на сервер
+        // fetch(`${this.serverUrl}/api/orders/${this.currentOrder.id}/cancel`, { ... })
+        
+        // Возвращаем на главный экран
+        this.showScreen('home');
+        this.currentOrder = null;
+        
+        // Очищаем форму
+        document.getElementById('from-address').value = '';
+        document.getElementById('to-address').value = '';
+        document.getElementById('price').value = '';
+    }
+    
+    // Загрузка доступных заказов (для водителей)
+    async loadAvailableOrders() {
+        const container = document.getElementById('available-orders');
+        container.innerHTML = '<p class="empty-state">Загрузка заказов...</p>';
+        
+        try {
+            const response = await fetch(`${this.serverUrl}/api/orders/active`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ошибка: ${response.status}`);
+            }
+            
+            const orders = await response.json();
+            
+            if (!orders || orders.length === 0) {
+                container.innerHTML = '<p class="empty-state">Нет доступных заказов в данный момент</p>';
+                return;
+            }
+            
+            container.innerHTML = '';
+            
+            orders.forEach(order => {
+                const orderElement = document.createElement('div');
+                orderElement.className = 'offer-item';
+                orderElement.innerHTML = `
+                    <div>
+                        <div class="offer-driver">
+                            <strong>${order.first_name || 'Пассажир'}</strong>
+                            ${order.username ? `@${order.username}` : ''}
+                        </div>
+                        <div style="margin: 8px 0;">
+                            <i class="fas fa-map-marker-alt"></i> ${order.address_a}<br>
+                            <i class="fas fa-flag"></i> ${order.address_b}
+                        </div>
+                        <div class="offer-price">${order.passenger_price} ₽</div>
+                        <div style="font-size: 12px; color: #636e72;">
+                            Заказ #${order.id} • ${new Date(order.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </div>
+                    </div>
+                    <div class="offer-actions">
+                        <button class="btn btn-success btn-small btn-take-order" 
+                                data-order-id="${order.id}" 
+                                data-price="${order.passenger_price}">
+                            <i class="fas fa-car"></i> Взять
+                        </button>
+                        <button class="btn btn-secondary btn-small btn-make-offer" 
+                                data-order-id="${order.id}">
+                            <i class="fas fa-handshake"></i> Предложить
+                        </button>
+                    </div>
+                `;
+                
+                container.appendChild(orderElement);
+                
+                // Добавляем обработчики для кнопок
+                const takeBtn = orderElement.querySelector('.btn-take-order');
+                takeBtn.addEventListener('click', (e) => {
+                    const orderId = e.target.getAttribute('data-order-id');
+                    const price = e.target.getAttribute('data-price');
+                    this.takeOrder(orderId, price);
+                });
+                
+                const offerBtn = orderElement.querySelector('.btn-make-offer');
+                offerBtn.addEventListener('click', (e) => {
+                    const orderId = e.target.getAttribute('data-order-id');
+                    this.makeOfferToPassenger(orderId);
+                });
+            });
+            
+        } catch (error) {
+            console.error('Ошибка загрузки заказов:', error);
+            
+            // Тестовые данные при ошибке
+            container.innerHTML = '';
+            const testOrders = [
+                { id: 1001, passenger_price: 300, address_a: 'ул. Ленина, 10', address_b: 'ТРЦ "Москва"', first_name: 'Иван' },
+                { id: 1002, passenger_price: 450, address_a: 'пр. Мира, 25', address_b: 'Аэропорт', first_name: 'Мария' }
+            ];
+            
+            testOrders.forEach(order => {
+                const orderElement = document.createElement('div');
+                orderElement.className = 'offer-item';
+                orderElement.innerHTML = `
+                    <div>
+                        <div class="offer-driver">
+                            <strong>${order.first_name}</strong>
+                        </div>
+                        <div style="margin: 8px 0;">
+                            <i class="fas fa-map-marker-alt"></i> ${order.address_a}<br>
+                            <i class="fas fa-flag"></i> ${order.address_b}
+                        </div>
+                        <div class="offer-price">${order.passenger_price} ₽</div>
+                    </div>
+                    <div class="offer-actions">
+                        <button class="btn btn-success btn-small btn-take-test" 
+                                data-order-id="${order.id}" 
+                                data-price="${order.passenger_price}">
+                            <i class="fas fa-car"></i> Взять
+                        </button>
+                    </div>
+                `;
+                
+                container.appendChild(orderElement);
+                
+                const takeBtn = orderElement.querySelector('.btn-take-test');
+                takeBtn.addEventListener('click', (e) => {
+                    const orderId = e.target.getAttribute('data-order-id');
+                    const price = e.target.getAttribute('data-price');
+                    this.takeOrder(orderId, price);
+                });
+            });
+        }
+    }
+    
+    // Взять заказ (для водителя)
+    takeOrder(orderId, price) {
+        const confirmMessage = `Взять заказ #${orderId} за ${price} ₽?`;
+        
+        if (this.isTelegram) {
+            if (this.tg.showConfirm(confirmMessage)) {
+                this.processTakenOrder(orderId, price);
+            }
+        } else {
+            if (confirm(confirmMessage)) {
+                this.processTakenOrder(orderId, price);
+            }
+        }
+    }
+    
+    // Обработка взятого заказа
+    processTakenOrder(orderId, price) {
+        this.showAlert(`✅ Вы приняли заказ #${orderId} за ${price} ₽`);
+        
+        // В реальном приложении здесь бы отправлялось на сервер
+        // fetch(`${this.serverUrl}/api/orders/${orderId}/take`, { ... })
+        
+        // Возвращаем на главный экран
+        this.showScreen('home');
+        this.showNotification(`🚕 Вы взяли заказ #${orderId}. Свяжитесь с пассажиром для уточнения деталей.`);
+    }
+    
+    // Сделать предложение пассажиру
+    makeOfferToPassenger(orderId) {
+        const price = prompt('Ваше предложение (руб.):');
+        
+        if (price && !isNaN(parseInt(price))) {
+            const priceNum = parseInt(price);
+            if (priceNum < 50) {
+                this.showAlert('❌ Минимальная цена - 50 рублей');
+                return;
+            }
+            
+            this.showAlert(`📩 Предложение ${priceNum} ₽ отправлено пассажиру`);
+            
+            // В реальном приложении здесь бы отправлялось на сервер
+            // fetch(`${this.serverUrl}/api/proposals`, {
+            //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json' },
+            //     body: JSON.stringify({
+            //         order_id: orderId,
+            //         driver_id: this.user.id,
+            //         proposed_price: priceNum
+            //     })
+            // });
+        }
+    }
+    
+    // Показать экран
+    showScreen(screenName) {
+        // Скрываем все экраны
+        document.querySelectorAll('.screen').forEach(screen => {
+            screen.classList.add('hidden');
+        });
+        
+        // Показываем выбранный экран
+        const targetScreen = document.getElementById(`screen-${screenName}`);
+        if (targetScreen) {
+            targetScreen.classList.remove('hidden');
+            this.currentScreen = screenName;
+            
+            // Загружаем данные если нужно
+            if (screenName === 'orders-list') {
+                this.loadAvailableOrders();
+            }
+        }
+    }
+    
+    // Показать приложение
+    showApp() {
+        document.getElementById('loader').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('app').classList.remove('hidden');
+            this.showNotification('🚕 Local Taxi готов к работе!', 2000);
+        }, 300);
+    }
+    
+    // Вспомогательные методы
+    showAlert(message) {
+        if (this.isTelegram) {
+            this.tg.showAlert(message);
+        } else {
+            alert(message);
+        }
+        console.log('Alert:', message);
+    }
+    
+    showNotification(message, duration = 3000) {
+        const notification = document.getElementById('notification');
+        const content = document.querySelector('.notification-content');
+        
+        if (!notification || !content) return;
+        
+        content.textContent = message;
+        notification.classList.remove('hidden');
+        
+        setTimeout(() => {
+            notification.classList.add('hidden');
+        }, duration);
+        
+        console.log('Notification:', message);
+    }
+}
+
+// Создаем и запускаем приложение
+document.addEventListener('DOMContentLoaded', () => {
+    window.taxiApp = new TaxiApp();
+});
